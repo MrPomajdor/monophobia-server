@@ -3,7 +3,7 @@ from typing import List
 
 class BroadcastTypes:
     transforms = 0
-    
+
 class Maps:
     gridmap = "grid0"
 
@@ -16,7 +16,8 @@ class Player:
         self.tcp_port = None
         self.position = (0,0,0)
         self.rotation = (0,0,0)
-        self.velocity = (0,0,0)
+        self.real_velocity = (0,0,0)
+        self.target_velocity = (0,0,0)
         self.cosmetics = []
         self.skin = ""
         self.isHost = False
@@ -25,7 +26,7 @@ class Player:
     def GetDataDic(self) -> dict:
         dic = {}
         dic["type"] = "PlayerPositionData"
-        dic["transforms"] = {"position":{"x":self.position[0],"y":self.position[1],"z":self.position[2]},"rotation":{"x":self.rotation[0],"y":self.rotation[1],"z":self.rotation[2]},"velocity":{"x":self.velocity[0],"y":self.velocity[1],"z":self.velocity[2]}}
+        dic["transforms"] = {"position":{"x":self.position[0],"y":self.position[1],"z":self.position[2]},"rotation":{"x":self.rotation[0],"y":self.rotation[1],"z":self.rotation[2]},"real_velocity":{"x":self.real_velocity[0],"y":self.real_velocity[1],"z":self.real_velocity[2]},"target_velocity":{"x":self.target_velocity[0],"y":self.target_velocity[1],"z":self.target_velocity[2]}}
         dic["id"] = self.id
         return dic
     

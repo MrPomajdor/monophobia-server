@@ -200,7 +200,7 @@ class GameServer:
                                         
                                         player_class.lobby = lobby
                                         resp.send(client_socket)
-                                        
+
                                         for pl in lobby.players:
                                             resp.send(pl.socket)
                                 else:
@@ -249,10 +249,12 @@ class GameServer:
                                         transforms = js.get("transforms")
                                         pos = transforms.get("position")
                                         rot = transforms.get("rotation")
-                                        vel = transforms.get("velocity")
+                                        t_vel = transforms.get("target_velocity")
+                                        r_vel = transforms.get("real_velocity")
                                         player_class.position = (pos.get("x"),pos.get("y"),pos.get("z"))
                                         player_class.rotation = (rot.get("x"),rot.get("y"),rot.get("z"))
-                                        player_class.velocity = (vel.get("x"),vel.get("y"),vel.get("z"))
+                                        player_class.target_velocity = (t_vel.get("x"),t_vel.get("y"),t_vel.get("z"))
+                                        player_class.real_velocity = (r_vel.get("x"),r_vel.get("y"),r_vel.get("z"))
                                         self.broadcast(player_class.lobby,BroadcastTypes.transforms)
                                 else:
                                     print(f"ID doesnt match id (local) {player_class.id} id (remote) {id}")
