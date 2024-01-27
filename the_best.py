@@ -4,6 +4,7 @@ import socket
 import threading
 import time
 import struct
+import traceback
 from modules.messages import *
 from typing import List
 from modules.formats import DataFormats
@@ -186,21 +187,22 @@ class GameServer:
                                             resp.send(client_socket)
                                             return
                                         
+                                        
+                                        lobby.AddPlayer(player_class)
+
                                         #Everything ok add player to the lobby and send confirmation (lobby info)
                                         json_info = lobby.GetInfoJSON()
-
-
                                         resp = Packet()
                                         resp.header = Headers.data
                                         resp.flag = Flags.Response.lobbyInfo
                                         resp.add_to_payload(json_info)
                                         resp.send(client_socket)
-                                        for pl in lobby.players:
-                                            resp.send(pl.socket)
-                                        lobby.AddPlayer(player_class)
+                                        
                                         player_class.lobby = lobby
                                         resp.send(client_socket)
-                                       
+                                        
+                                        for pl in lobby.players:
+                                            resp.send(pl.socket)
                                 else:
                                     resp = Packet()
                                     resp.header = Headers.rejected
@@ -268,6 +270,7 @@ class GameServer:
             resp.add_to_payload(str(e))
             resp.send(client_socket)
             print(f"{e} 271")
+            traceback.print_exc()
         finally:
             # Disconnect client and clean up
             print("Client disconnected.")
@@ -282,6 +285,7 @@ class GameServer:
                 pack.header = Headers.data
                 pack.flag = Flags.Response.transformData
                 pack.add_to_payload(json.dumps(dic))
+                print(f"Broadcasting to {len(lobby.players)}")
                 for pl in lobby.players:
                     pack.send(pl.socket)
                     
