@@ -1,0 +1,25 @@
+from client:
+    hello:
+        string name
+
+        no response
+    lobbyList:
+        no payload
+
+        respond with
+        int lobby amount
+        for every lobby
+            int lobby id
+            string lobby name
+            bool password protected
+            int current players
+            int max players
+    createLobby:
+        string lobby name
+        string password (def. null)
+        int max_players
+from server:
+    hello:
+        respong with header ACK
+        no payload
+    
