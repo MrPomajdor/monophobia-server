@@ -230,6 +230,30 @@ class GameServer:
                                 lobby_name,password,max_players = payload_tuple
                                 self.createLobby(player_id,lobby_name,)
                                 self.add_client_to_lobby(player_id, lobby_name)
+                            case Flags.Post.transformData:
+                                try:
+                                    js = json.loads(packet.get_from_payload(['string']))
+                                except:
+                                    print(f"[!] Recieved corrupted json data from {player_class.id}!")
+                                    resp = Packet()
+                                    resp.header = Headers.rejected
+                                    resp.flag = Flags.Response.closing_con
+                                    resp.add_to_payload("JSON_CORRUPTED")
+                                    resp.send(client_socket)
+                                    return
+                                id = js.get("id")
+                                if player_class.id == id:  #check if id matches
+                                        #TODO: make the alsgorythm for checking if the client is cheating, eg. check the distance between positions and detect when it jumps then teleport him back
+                                        transforms = js.get("transforms")
+                                        pos = transforms.get("position")
+                                        rot = transforms.get("rotation")
+                                        vel = transforms.get("velocity")
+                                        player_class.position = (pos.get("x"),pos.get("y"),pos.get("z"))
+                                        player_class.rotation = (rot.get("x"),rot.get("y"),rot.get("z"))
+                                        player_class.velocity = (vel.get("x"),vel.get("y"),vel.get("z"))
+                                        self.broadcast(player_class.lobby,BroadcastTypes.transforms)
+                                else:
+                                    print(f"ID doesnt match id (local) {player_class.id} id (remote) {id}")
                     case Headers.echo:
                         #i mean, okay? What do you want me to fucking do with that information. Like I could send you ack i guess?
                         xd = Packet()
@@ -243,12 +267,25 @@ class GameServer:
             resp.flag = Flags.Response.closing_con
             resp.add_to_payload(str(e))
             resp.send(client_socket)
-            print(e)
+            print(f"{e} 271")
         finally:
             # Disconnect client and clean up
             print("Client disconnected.")
             self.disconnect_client(client_socket, player_class)
-    
+    def broadcast(self,lobby:Lobby,what):
+        match what:
+            case BroadcastTypes.transforms:
+                dic = {}
+                dic["type"] = "OtherPlayersPositionData"
+                dic["players"] = [cl.GetDataDic() for cl in self.clients]
+                pack = Packet()
+                pack.header = Headers.data
+                pack.flag = Flags.Response.transformData
+                pack.add_to_payload(json.dumps(dic))
+                for pl in lobby.players:
+                    pack.send(pl.socket)
+                    
+                    
     def createLobby(self,owner:Player,lobbyName:str,max_players:int,password:str=None):
         for lobby in self.lobbies:
             if lobby.name == lobbyName:
@@ -322,8 +359,6 @@ class GameServer:
     def start(self):
         tcp = threading.Thread(target=self.tcp_recv)
         tcp.start()
-        udp = threading.Thread(target=self.udp_recv)
-        udp.start()
         
     def tcp_recv(self):
         print("Server is listening for connections...")
@@ -337,64 +372,6 @@ class GameServer:
             print("Server shutting down.")
         finally:
             self.server_socket.close()
-    def udp_broadcast(self,lobby:Lobby): #TODO: digest the data before sending (calculate if they make sense)
-#                            #self.digest_positions(self.clients)
-        dic = {}
-        dic["type"] = "OtherPlayersPositionData"
-        dic["players"] = [cl.GetDataDic() for cl in self.clients]
-        for cl in lobby.players:
-            print(f"Sending to {(cl.ip,cl.udp_port)}")
-            
-    def udp_sendto(self,data,address):
-        if address[0] and address[1]:
-            self.udp_socket.sendto(data,address)
-        else:
-            print("[!] someones port/ip is still None!")
-    def udp_recv(self):
-        print("Udp Server is listening for connections..")
-        try:
-            while True:
-                data, addr = self.udp_socket.recvfrom(4096)
-                try:
-                    js = json.loads(data)
-                except:
-                    print(f"[!] Recieved corrupted json data from {addr}!")
-                id = js.get("id")
-                pl = next((item for item in self.clients if item.id == id), None)
-                print(f"Player id : {pl.id}")
-                if pl:
-                    if pl.id == id and pl.ip == addr[0]: 
-                        if not pl.udp_port:
-                            pl.udp_port = addr[1]
-                            print(f"UDP port set to {addr[1]}")
-
-                        else:
-                            if pl.udp_port != addr[1]:
-                                print(f"Port doesnt match {pl.udp_port} and {addr[1]}")
-                                return
-                        match js.get("type"):
-                            case "PlayerPositionData": #TODO: make the alsgorythm for checking if the client is cheating, eg. check the distance between positions and detect when it jumps then teleport him back
-                                transforms = js.get("transforms")
-                                pos = transforms.get("position")
-                                rot = transforms.get("rotation")
-                                vel = transforms.get("velocity")
-                                pl.position = (pos.get("x"),pos.get("y"),pos.get("z"))
-                                pl.rotation = (rot.get("x"),rot.get("y"),rot.get("z"))
-                                pl.velocity = (vel.get("x"),vel.get("y"),vel.get("z"))
-                                self.udp_broadcast(pl.lobby)
-                    else:
-                        print(f"ID/IP doesnt match id (local) {pl.id} id (remote) {id} and ip (local) {pl.ip} ip (remote) {addr[0]}")
-
-                #print(f"Recieved data from {addr}:\n{data}")
-                #self.udp_socket.sendto(data+b" ECHO",addr)
-        except KeyboardInterrupt:
-            print("shitting down")
-        except Exception as e:
-            print(e)
-        finally:
-            print("closing")
-            self.udp_socket.close()
-
 
 
 

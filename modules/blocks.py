@@ -1,6 +1,9 @@
 import json
 from typing import List
 
+class BroadcastTypes:
+    transforms = 0
+    
 class Maps:
     gridmap = "grid0"
 

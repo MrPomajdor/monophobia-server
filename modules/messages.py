@@ -18,6 +18,9 @@ class Flags:
         leaveLobby = b'\x08'
         createLobby = b'\x11'
         updateLobbyInfo = b'\x10'
+
+        transformData = b'\xA0'
+        lobbyInfo = b'\xA1'
     class Response:
         transformData = b'\x02'
         idAssign = b'\x03'
@@ -26,3 +29,5 @@ class Flags:
         lobbyInfo = b'\x09'
         error = b'\xFF'
         closing_con = b'\xF0'
+
+        transformData = b'\xB0'
