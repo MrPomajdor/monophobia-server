@@ -1,8 +1,9 @@
 import json
 from typing import List
-
+from modules.packet_classes import *
 class BroadcastTypes:
     transforms = 0
+    voice = 1
 
 class Maps:
     gridmap = "grid0"
@@ -14,21 +15,17 @@ class Player:
         self.ip = None
         self.udp_port = None
         self.tcp_port = None
-        self.position = (0,0,0)
-        self.rotation = (0,0,0)
-        self.real_velocity = (0,0,0)
-        self.target_velocity = (0,0,0)
+        self.player_data = PlayerData()
         self.cosmetics = []
         self.skin = ""
         self.isHost = False
         self.lobby:Lobby = None
         self.socket = None
-    def GetDataDic(self) -> dict:
-        dic = {}
-        dic["type"] = "PlayerPositionData"
-        dic["transforms"] = {"position":{"x":self.position[0],"y":self.position[1],"z":self.position[2]},"rotation":{"x":self.rotation[0],"y":self.rotation[1],"z":self.rotation[2]},"real_velocity":{"x":self.real_velocity[0],"y":self.real_velocity[1],"z":self.real_velocity[2]},"target_velocity":{"x":self.target_velocity[0],"y":self.target_velocity[1],"z":self.target_velocity[2]}}
-        dic["id"] = self.id
-        return dic
+    def GetDataDic(self,s=False) -> dict:
+        if s:
+            return ClassToJson(self.player_data)
+        return json.dumps(ClassToJson(self.player_data))
+        
     
 
 

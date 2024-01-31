@@ -21,6 +21,8 @@ class Flags:
 
         transformData = b'\xA0'
         lobbyInfo = b'\xA1'
+
+        voice = b'\xAC'
     class Response:
         transformData = b'\x02'
         idAssign = b'\x03'
@@ -31,3 +33,4 @@ class Flags:
         closing_con = b'\xF0'
 
         transformData = b'\xB0'
+        voice = b'\x0C'
