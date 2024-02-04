@@ -7,13 +7,17 @@ from modules.messages import *
 
 
 
-def is_socket_connected(sock):
+def is_socket_connected(sock:socket):
     try:
-        # Sending 0 bytes does not actually send data but will check for a closed socket
-        sock.sendall(b'')
-    except socket.error:
+        match sock.getsockopt(socket.SOL_SOCKET, socket.SO_TYPE):
+            case socket.SOCK_STREAM:
+                # Sending 0 bytes does not actually send data but will check for a closed socket
+                sock.sendall(b'')
+                return True
+            case socket.SOCK_DGRAM:
+                return True
+    except:
         return False
-    return True
 
 
 class PacketParser:
@@ -28,20 +32,24 @@ class Packet:
         self.payload = b''
         self.port = 0
         self.ip = "0.0.0.0"
-    def digest_data(self, data):
+    def digest_data(self, data) -> bool:
         if len(data)<3:
             print("Packet length too short! Discarding")
-            return
-        
-        with BytesIO(data) as stream:
-            # Read the header (2 bytes)
-            self.header = stream.read(2)
+            return False
+        try:
+            with BytesIO(data) as stream:
+                # Read the header (2 bytes)
+                self.header = stream.read(2)
 
-            # Read the flag (1 byte)
-            self.flag = stream.read(1)
+                # Read the flag (1 byte)
+                self.flag = stream.read(1)
 
-            # Read the payload (the rest of the bytes)
-            self.payload = stream.read()
+                # Read the payload (the rest of the bytes)
+                self.payload = stream.read()
+        except:
+            return False
+        finally:
+            return True
 
     def send(self, client_socket:socket,addr:tuple=None) -> int:
         if not is_socket_connected(client_socket):
@@ -74,6 +82,8 @@ class Packet:
             self.payload += struct.pack('?', value)
         elif isinstance(value, int):
             self.payload += struct.pack('I', value)
+        elif isinstance(value, bytes):
+            self.payload += value
 
     def get_from_payload(self,formats:list) -> tuple:
         _pay = self.payload

@@ -7,7 +7,7 @@ class Headers:
     joinRoom = b'\x05\x00'
     createLobby = b'\x06\x00'
     rejected = b'\xFF\xFF'
-
+    imHere = b'\xAA\xAA'
 class Flags:
     none = b'\x00'
     class Request:

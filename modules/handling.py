@@ -1,20 +1,23 @@
+from math import sqrt
 from modules.blocks import *
 from modules.packet import *
 from modules.messages import *
-
-
+from modules.packet_classes import Vector3
+def Distance(a:Vector3, b:Vector3):
+    return sqrt((b.x - a.x)**2 + (b.y - a.y)**2 + (b.z - a.z)**2)
 class Handling:
     def __init__(self) -> None:
-        self.player_class = None
-        self.client_socket = None
+        self.player_class:Player = None
+        self.client_socket:socket = None
         self.server_class = None
         pass
-    def parse_packet(self, packet):
+    def parse_packet(self, packet:Packet):
         match packet.header:
             case Headers.data:
                 match packet.flag:
                     case Flags.Post.joinLobby: #{"mapName":"grid0","time":300,"players":[{"name":"debil","id":0,"cosmetics":[],"skin":"male01","isHost":false}]}
                         lobby_id, password = packet.get_from_payload(['int','string'])
+                        lobby:Lobby = None
                         lobby = next((item for item in self.server_class.lobbies if item.id == lobby_id), None)
                         if lobby != None:
                             if lobby.id == lobby_id:
@@ -43,6 +46,8 @@ class Handling:
                                 resp.add_to_payload(json_info)
                                 self.player_class.lobby = lobby
                                 resp.send(self.client_socket)
+                                for pl in lobby.players:
+                                    resp.send(pl.socket)
                         else:
                             resp = Packet()
                             resp.header = Headers.rejected
@@ -69,7 +74,7 @@ class Handling:
                         lobby_name,password,max_players = payload_tuple
                         self.serverClass.createLobby(self.player_class.id,lobby_name,)
                         self.serverClass.add_client_to_lobby(self.player_class.id, lobby_name)
-                    case Flags.Post.transformData:
+                    case Flags.Post.transformData: #UDP
                         try:
                             js = json.loads(packet.get_from_payload(['string']))
                         except:
@@ -84,10 +89,26 @@ class Handling:
                         if self.player_class.id == id:  #check if id matches
                                 #TODO: make the alsgorythm for checking if the client is cheating, eg. check the distance between positions and detect when it jumps then teleport him back
                                 self.player_class.player_data = JsonToClass(js,PlayerData)
-                                self.broadcast(self.player_class.lobby,BroadcastTypes.transforms)
+                                self.broadcast(self.player_class.lobby,BroadcastTypes.transforms,sock=self.server_class.udp_socket)
                         else:
-                            print(f"ID doesnt match id (local) {self.player_class.id} id (remote) {id}")
-                    case _:
+                            print(f"ID doesnt match id (local) {self.player_class.id} id (remote) {id}\n{js}\n")
+                    case Flags.Post.voice: #UDP! TODO: maybe add something like when 2 players send voice data then it packs both of their packets into one and broadcasts?
+                        if not self.player_class.lobby:
+                            return
+                        vo_data = packet.payload[4:]
+                        #print(f"Recieved {len(vo_data)} bytes of voice data")
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                if Distance(pla.player_data.transforms.position,pla.player_data.transforms.position) < 50000000: #TODO: Check the actual distance and set it as a variable in lobby settings
+                                    pac = Packet()
+                                    pac.header = Headers.data
+                                    pac.flag = Flags.Response.voice
+                                    pac.add_to_payload(pla.id)
+                                    pac.add_to_payload(vo_data)
+                                    pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
+                                else:
+                                    print("distance too big")
+                    case _: 
                         print(f"Invialid flag {packet.flag}")
 
             case Headers.echo:
@@ -99,9 +120,11 @@ class Handling:
                 pass
             case _:
                 print(f"Invialid header {packet.header}")
-    def broadcast(self,lobby:Lobby,what:BroadcastTypes,data=None):
+    def broadcast(self,lobby:Lobby,what:BroadcastTypes,data=None,sock:socket=None):
         match what:
             case BroadcastTypes.transforms:
+                if (not lobby) or (not lobby.players):
+                    return
                 dic = PlayersDataPacket()
                 dic.players = [cl.GetDataDic() for cl in self.server_class.clients]
                 pack = Packet()
@@ -109,7 +132,7 @@ class Handling:
                 pack.flag = Flags.Response.transformData
                 pack.add_to_payload(ClassToJson(dic))
                 for pl in lobby.players:
-                    pack.send(pl.socket)
+                    pack.send(sock,(pl.ip,pl.udp_port))
             case BroadcastTypes.voice:
                 if not data:
                     return
@@ -179,7 +202,7 @@ class Handling:
         lb = player.lobby
         if lb:
             self.remove_client_from_lobby(player)
-            self.broadcast(lb,BroadcastTypes.transforms)
+            self.broadcast(lb,BroadcastTypes.transforms) #TODO: why did i decide to type that here?
         if player:
             i = 0
             if self.server_class.clients:

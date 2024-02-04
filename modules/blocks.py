@@ -21,10 +21,11 @@ class Player:
         self.isHost = False
         self.lobby:Lobby = None
         self.socket = None
-    def GetDataDic(self,s=False) -> dict:
-        if s:
-            return ClassToJson(self.player_data)
-        return json.dumps(ClassToJson(self.player_data))
+        self.handler = None
+    def GetDataDic(self,string=False) -> dict:
+        if not string:
+            return self.player_data.to_dict()
+        return json.dumps(self.player_data.to_dict())
         
     
 

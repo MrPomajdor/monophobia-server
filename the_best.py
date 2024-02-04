@@ -57,22 +57,41 @@ class GameServer:
             time.sleep(sleep_interval)
 
         return None
-    def HandleClientUDP(self,client_socket:socket,player_class:Player,hand:Handling):
-            print(f"UDP Handler started for {player_class.name}")
-            while 1:
-                try:
-                    data, addr = self.udp_socket.recvfrom(4096)
-                except:
-                    pass
-                if not data or player_class.ip != addr[0]:
-                    return
+    def udp_handler(self):
+        while 1:
+            try:
+                data, addr = self.udp_socket.recvfrom(4096)
+            except Exception as e:
+                print(f"{e} UDP")
+            #detect 'I'm here!' packet
+            if data:
+                if len(data)>2 and data[:2] == Headers.imHere: #that looks ugly as hell. Oh and ImHere packet gets sent in the handshake phase, to tell the server what udp_port im going to send on
+                    p = next((plc for plc in self.clients if plc.udp_port == addr[1] and plc.ip == addr[0]), None)
+                    if not p:
+                        imHerePacket = Packet()
+                        imHerePacket.digest_data(data)
+                        id = imHerePacket.get_from_payload(['int'])
+                        for xd in self.clients:
+                            if xd.id == id and xd.udp_port==None:
+                                xd.udp_port = addr[1]
+                                print(f"player with id {id} initialized udp port to {addr[1]}")
+                                continue
+            
+            player_class = next((plc for plc in self.clients if plc.udp_port == addr[1] and plc.ip == addr[0]), None)
+            if not data or not player_class or player_class.ip != addr[0] or player_class.udp_port != addr[1]:
+                print(":c")
+                continue
+
+            try:
                 if data.decode("UTF-8") == "holepunch":
-                    return
-                dataPacket = Packet()
-                dataPacket.port = addr[1]
-                dataPacket.ip = addr[0]
-                dataPacket.digest_data(data)
-                hand.parse_packet(dataPacket)
+                    continue
+            except:
+                pass
+            player_class.udp_port = addr[1]
+            dataPacket = Packet()
+            if dataPacket.digest_data(data):
+                player_class.handler.parse_packet(dataPacket)
+                
     def HandleClientTCP(self, client_socket:socket.socket, address):
         player_id = None
         print(f"Accepted connection from {address}")
@@ -104,13 +123,11 @@ class GameServer:
             echo = threading.Thread(target=self.echo_handler, args=(client_socket,))
             echo.start()
             print(f"Client initialized: {name} id {player_class.id}")
-            
+            player_class.handler = hand
             hand.client_socket = client_socket
             hand.player_class = player_class
             hand.server_class = self
 
-            udp = threading.Thread(target=self.HandleClientUDP,args=(client_socket,player_class,hand))
-            udp.start()
 
             while 1:
                 try:
@@ -167,6 +184,9 @@ class GameServer:
     def start(self):
         tcp = threading.Thread(target=self.tcp_recv)
         tcp.start()
+        udp = threading.Thread(target=self.udp_handler)
+        udp.start()
+
 
 # Instantiate and start the server
 game_server = GameServer('0.0.0.0')

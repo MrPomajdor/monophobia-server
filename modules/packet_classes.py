@@ -5,34 +5,57 @@ class Vector3:
         self.x = x
         self.y = y
         self.z = z 
+    def __str__(self) -> str:
+        return f"Vector3({self.x}, {self.y}, {self.z})"
+    def to_dict(self):
+        return {"x": self.x, "y": self.y, "z": self.z}
 
 class Inputs:
     def __init__(self):
         self.isSprinting = False
         self.isMoving = False
         self.isCrouching = False
-
+    def to_dict(self):
+        return {"isSprinting": self.isSprinting, "isMoving": self.isMoving, "isCrouching": self.isCrouching}
+    
 class Transforms:
     def __init__(self):
         self.position = Vector3()
         self.rotation = Vector3()
         self.target_velocity = Vector3()
         self.real_velocity = Vector3()
-
+    def to_dict(self):
+        return {
+            "position": self.position.to_dict(),
+            "rotation": self.rotation.to_dict(),
+            "target_velocity": self.target_velocity.to_dict(),
+            "real_velocity": self.real_velocity.to_dict(),
+        }
 class PlayerData:
     def __init__(self):
         self.type = "PlayerPositionData"
         self.transforms = Transforms()
         self.inputs = Inputs()
         self.id = 0
-
+    def to_dict(self):
+        return {
+            "type": self.type,
+            "transforms": self.transforms.to_dict(),
+            "inputs": self.inputs.to_dict(),
+            "id": self.id,
+        }
 class PlayersDataPacket:
     def __init__(self):
         self.type = "OtherPlayersPositionData"
         self.players = []
-
+    def to_dict(self):
+        return {
+            "type": self.type,
+            "players": [player.to_dict() for player in self.players]
+        }
 def ClassToJson(obj):
     return json.dumps(obj, default=lambda o: o.__dict__)
+
 
 def JsonToClass(json_str, cls):
     """
@@ -57,10 +80,10 @@ def JsonToClass(json_str, cls):
         return obj
     elif cls == Transforms:
         obj = Transforms()
-        p = data.get('position')
-        r = data.get('rotation')
-        tv = data.get('target_velocity')
-        rv = data.get('real_velocity')
+        p = JsonToClass(json.dumps(data.get('position')),Vector3)
+        r = JsonToClass(json.dumps(data.get('rotation')),Vector3)
+        tv = JsonToClass(json.dumps(data.get('target_velocity')),Vector3)
+        rv = JsonToClass(json.dumps(data.get('real_velocity')),Vector3)
         obj.position = p
         obj.real_velocity = rv
         obj.target_velocity = tv
@@ -74,7 +97,11 @@ def JsonToClass(json_str, cls):
         return obj
     elif cls == PlayersDataPacket:
         obj = PlayersDataPacket()
-        obj.players = [JsonToClass(json.dumps(player), PlayerData) for player in data.get('players', [])]
+        obj.players = [ ]
+        for player in data.get('players', []):
+            xd = JsonToClass(player, PlayerData)
+            print(type(xd),xd)
+            obj.players.append(xd)
         return obj
     else:
         raise ValueError(f"Unsupported class: {cls}")
