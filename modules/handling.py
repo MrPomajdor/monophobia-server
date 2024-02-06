@@ -92,22 +92,21 @@ class Handling:
                                 self.broadcast(self.player_class.lobby,BroadcastTypes.transforms,sock=self.server_class.udp_socket)
                         else:
                             print(f"ID doesnt match id (local) {self.player_class.id} id (remote) {id}\n{js}\n")
-                    case Flags.Post.voice: #UDP! TODO: maybe add something like when 2 players send voice data then it packs both of their packets into one and broadcasts?
+                    case Flags.Post.voice: #UDP! TODO: OPTIMIZE!!! and maybe add something like when 2 players send voice data then it packs both of their packets into one and broadcasts? Think about it bc i think thats not a good idea tbh
                         if not self.player_class.lobby:
                             return
-                        vo_data = packet.payload[4:]
+                        vo_data = packet.payload
+                        pac = Packet()
+                        pac.header = Headers.data
+                        pac.flag = Flags.Response.voice
+                        pac.add_to_payload(self.player_class.id)
+                        pac.add_to_payload(len(vo_data))
+                        pac.add_to_payload(vo_data)
                         #print(f"Recieved {len(vo_data)} bytes of voice data")
                         for pla in self.player_class.lobby.players:
                             if pla.id != self.player_class.id:
-                                if Distance(pla.player_data.transforms.position,pla.player_data.transforms.position) < 50000000: #TODO: Check the actual distance and set it as a variable in lobby settings
-                                    pac = Packet()
-                                    pac.header = Headers.data
-                                    pac.flag = Flags.Response.voice
-                                    pac.add_to_payload(pla.id)
-                                    pac.add_to_payload(vo_data)
+                                if Distance(pla.player_data.transforms.position,pla.player_data.transforms.position) < self.player_class.lobby.MiscSettings.max_voice_distance: #TODO: Check the actual distance and set it as a variable in lobby settings
                                     pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
-                                else:
-                                    print("distance too big")
                     case _: 
                         print(f"Invialid flag {packet.flag}")
 

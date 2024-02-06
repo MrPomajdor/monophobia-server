@@ -7,6 +7,13 @@ class BroadcastTypes:
 
 class Maps:
     gridmap = "grid0"
+    lobby = "lobby0"
+
+class MiscSettings: #TODO: Add more settings
+    def __init__(self) -> None:
+        self.max_voice_distance = 9999999
+        
+
 
 class Player:
     def __init__(self) -> None:
@@ -41,6 +48,8 @@ class Lobby:
         self.password_protected = False
         self.password = ""
         self.id = 0
+        self.started = False
+        self.MiscSettings = MiscSettings()
     def SetOwnership(self,new_owner):
         self.owner = new_owner
     def AddPlayer(self,player:Player):

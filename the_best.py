@@ -75,11 +75,10 @@ class GameServer:
                             if xd.id == id and xd.udp_port==None:
                                 xd.udp_port = addr[1]
                                 print(f"player with id {id} initialized udp port to {addr[1]}")
-                                continue
-            
+                                break
+                    continue
             player_class = next((plc for plc in self.clients if plc.udp_port == addr[1] and plc.ip == addr[0]), None)
             if not data or not player_class or player_class.ip != addr[0] or player_class.udp_port != addr[1]:
-                print(":c")
                 continue
 
             try:
