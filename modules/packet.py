@@ -4,7 +4,7 @@ import socket
 import struct
 from modules.formats import DataFormats
 from modules.messages import *
-
+from modules.logging import *
 
 
 def is_socket_connected(sock:socket):
@@ -37,6 +37,7 @@ class Packet:
             print("Packet length too short! Discarding")
             return False
         try:
+            mainLogger.log(f"Digesting packet data:\n\n{data}\n\n",10)
             with BytesIO(data) as stream:
                 # Read the header (2 bytes)
                 self.header = stream.read(2)
@@ -58,6 +59,7 @@ class Packet:
             case socket.SOCK_STREAM:
                 buf = PacketParser.assemble_message(self.header, self.flag, self.payload)
                 try:
+                    mainLogger.log(f"Sending packet via TCP:\n\n{buf}\n\n",10)
                     client_socket.sendall(buf)
                     return len(buf)
                 except:
@@ -66,6 +68,7 @@ class Packet:
             case socket.SOCK_DGRAM:
                 buf = PacketParser.assemble_message(self.header, self.flag, self.payload)
                 try:
+                    mainLogger.log(f"Sending packet via UDP:\n\n{buf}\n\n",10)
                     client_socket.sendto(buf,addr)
                     return len(buf)
                 except:

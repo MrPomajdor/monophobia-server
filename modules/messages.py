@@ -31,6 +31,8 @@ class Flags:
         lobbyInfo = b'\x09'
         error = b'\xFF'
         closing_con = b'\xF0'
+        lobbyListChanged = b'\x0A'
 
+        #UDP
         transformData = b'\xB0'
         voice = b'\x0C'

@@ -1,9 +1,12 @@
 import json
+import random
 from typing import List
 from modules.packet_classes import *
 class BroadcastTypes:
     transforms = 0
     voice = 1
+    playersInLobby = 2
+    lobbyList = 3
 
 class Maps:
     gridmap = "grid0"
@@ -38,11 +41,11 @@ class Player:
 
 
 class Lobby:
-    def __init__(self,name:str) -> None:
+    def __init__(self,name:str):
         self.owner = None
         self.name = name
         self.players: List[Player] = []
-        self.map = Maps.gridmap
+        self.map = Maps.lobby
         self.mapSeed = 0
         self.max_players = 4
         self.password_protected = False
@@ -51,6 +54,8 @@ class Lobby:
         self.started = False
         self.MiscSettings = MiscSettings()
     def SetOwnership(self,new_owner):
+        if new_owner == None:
+            self.owner = random.choice(self.players)
         self.owner = new_owner
     def AddPlayer(self,player:Player):
         if len(self.players) < self.max_players:
