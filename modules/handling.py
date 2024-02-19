@@ -94,7 +94,7 @@ class Handling:
                         response_packet.add_to_payload(len(self.server_class.lobbies))
                         for lobby in self.server_class.lobbies:
                             response_packet.add_to_payload(lobby.id)
-                            response_packet.add_to_payload(lobby.name)
+                            response_packet.add_to_payload(lobby.name.decode("UTF-8"))
                             response_packet.add_to_payload(lobby.password_protected)
                             response_packet.add_to_payload(len(lobby.players))
                             response_packet.add_to_payload(lobby.max_players)

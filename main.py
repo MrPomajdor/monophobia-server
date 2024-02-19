@@ -169,7 +169,7 @@ class GameServer:
             resp.flag = Flags.Response.closing_con
             resp.add_to_payload(str(e))
             resp.send(client_socket)
-            mainLogger.logger.log(f"{e}")
+            mainLogger.log(f"{e}")
             traceback.print_exc()
         finally:
             # Disconnect client and clean up
