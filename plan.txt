@@ -67,3 +67,28 @@ mob ktory cos mowi odwrotnie i masz dyktafon ktory nagrywa wszystkie dzwieki
 basic potwory czyli jakie co sie na nie patrzy to sie nie ruszają
 
 gracz potwoj gramy w 5 osob, jeden gracz jest oznakowany ze jest potworem, i jak w jego pobizu jest wiecej niz 1 gracz to nie zajebie nikogo, ale jkak bedzie jedna to automatycznie zabija tą osobe, i jescze ze ten efekt przelatuje na inną osobe. I zrobic mape gdzie gracze bedą musieli sie trzymac razem-
+
+
+do losowego generowania map dodac np rozne tryby ucieczki(czy tam innego przejścia mapy):
+    rozwalenie ściany
+    przecięcie ściany czy tam coś
+    przetrwanie ileś czasu
+    naprawienie czegoś
+    znalezienie czegoś
+
+    i losowo będą się generowany objectivy że np
+
+    rozjebz                 ściane                           w          (miejsce)
+                            potwora
+                            potwory
+
+    znajdź                  (objekt)
+                            wyjście
+
+    napraw                  drzwi
+                            maszyne jakąś
+
+    utrzymaj                życie
+                            (tower defense)
+
+ten mob pająk og to zrobic zeby on zostawial pernamentne slady tam gdzie byl krew czy cos

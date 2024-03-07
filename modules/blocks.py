@@ -7,6 +7,8 @@ class BroadcastTypes:
     voice = 1
     playersInLobby = 2
     lobbyList = 3
+    lobbyInfo = 4
+    LobbyClosing = 5
 
 class Maps:
     gridmap = "grid0"
@@ -60,6 +62,7 @@ class Lobby:
     def AddPlayer(self,player:Player):
         if len(self.players) < self.max_players:
             self.players.append(player)
+            player.lobby = self
         else:
             print(f"Player '{player.name}' tried to enter full lobby.")
     def GetInfoJSON(self) -> str:
@@ -68,6 +71,6 @@ class Lobby:
         respDic["time"] = 300
         respDic["players"] = []
         for pl in self.players:
-            respDic["players"].append({"name":pl.name.decode("UTF-8"),"id":pl.id,"cosmetics":pl.cosmetics,"skin":pl.skin,"isHost":pl.isHost})
+            respDic["players"].append({"name":pl.name.decode("UTF-8"),"id":pl.id,"cosmetics":pl.cosmetics,"skin":pl.skin,"isHost":(self.owner == pl.id)})
         return json.dumps(respDic)
         

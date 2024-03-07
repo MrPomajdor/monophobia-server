@@ -24,7 +24,7 @@ class Handling:
         match packet.header:
             case Headers.data:
                 match packet.flag:
-                    case Flags.Post.createLobby:
+                    case Flags.Post.createLobby: #TODO: add a check if player has already a lobby, he cant create one. Please do it please please please
                         #name, max players,bool password,string password
                         mainLogger.log(f"Recieved lobby creation packet...",4)
                         new_name, new_max_players, isProtected, new_password = packet.get_from_payload(['string','int','bool','string'])
@@ -40,7 +40,11 @@ class Handling:
                             ReturnError(self.client_socket,"PLAYER_LOBBY_EXISTS")
                             mainLogger.log(f"Player {self.player_class.name} tried to create a lobby, even tho he has one already. Grumpy fucker...",4)
                             return
+                         
                         new_lobby = Lobby(new_name)
+                        if "shithead" in new_name.decode("UTF-8"):
+                            new_lobby.map = "grid0"
+                            mainLogger.log(f"Creating debug lobby")
                         new_lobby.SetOwnership(self.player_class.id)
                         new_lobby.AddPlayer(self.player_class)
                         if isProtected:
@@ -74,15 +78,7 @@ class Handling:
                                 
                                 lobby.AddPlayer(self.player_class)
                                 #Everything ok add player to the lobby and send confirmation (lobby info)
-                                json_info = lobby.GetInfoJSON()
-                                resp = Packet()
-                                resp.header = Headers.data
-                                resp.flag = Flags.Response.lobbyInfo
-                                resp.add_to_payload(json_info)
-                                self.player_class.lobby = lobby
-                                resp.send(self.client_socket)
-                                for pl in lobby.players:
-                                    resp.send(pl.socket)
+                                self.broadcast(lobby,BroadcastTypes.lobbyInfo)
                         else:
                             ReturnError(self.client_socket,"LOBBY_NOT_FOUND")
                             mainLogger.log(f"Player {self.player_class.name} tried to enter a non-existent lobby {lobby_id}",3)
@@ -160,12 +156,28 @@ class Handling:
                     return
                 
                 p = Packet()
-                pack.header = Headers.data
-                pack.flag = Flags.Response.voice
-                pack.add_to_payload(data)
+                p.header = Headers.data
+                p.flag = Flags.Response.voice
+                p.add_to_payload(data)
                 for pl in lobby.players:
-                    pack.send()
-                    
+                    p.send()
+            case BroadcastTypes.lobbyInfo:
+                json_info = lobby.GetInfoJSON()
+                resp = Packet()
+                resp.header = Headers.data
+                resp.flag = Flags.Response.lobbyInfo
+                resp.add_to_payload(json_info)
+                resp.send(self.client_socket)
+                for pl in lobby.players:
+                    resp.send(pl.socket)
+            case BroadcastTypes.LobbyClosing:
+                resp = Packet()
+                resp.header = Headers.rejected
+                resp.flag = Flags.Response.LobbyClosing
+                resp.add_to_payload(data)
+                resp.send(self.client_socket)
+                for pl in lobby.players:
+                    resp.send(pl.socket)
                     
     def createLobby(self,owner:Player,lobbyName:str,max_players:int,password:str=None):
         mainLogger.log(f"Creating lobby {lobbyName}/{max_players}/{password} for {owner.name}",4)
@@ -217,16 +229,21 @@ class Handling:
         if not lobby:
             return
         if lobby.owner == player:
-            lobby.SetOwnership(None)
+            self.broadcast(lobby,BroadcastTypes.LobbyClosing,data="Disconnected by host")
+            self.server_class.lobbies.remove(lobby)
+            mainLogger.log(f"Removed lobby {lobby.name} (owner left)",3)
+
         lobby.players.remove(player)
         if len(lobby.players) < 1:
             self.server_class.lobbies.remove(lobby)
+            mainLogger.log(f"Removed lobby {lobby.name} (last player left - how?)",3)
         player.lobby = None
         mainLogger.log(f"Removed player {player.id}/{player.name} from lobby",3)
     def disconnect_client(self, client_socket, player:Player):
         # Remove the client from lobbies and global player list
         mainLogger.log(f"Player {player.id}/{player.name} disconnecting...",3)
         if not player:
+            mainLogger.log(f"No player class present (just closing connection)",3)
             client_socket.close()
             return
         lb = player.lobby

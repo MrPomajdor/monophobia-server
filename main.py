@@ -21,7 +21,7 @@ import argparse
 argparser = argparse.ArgumentParser()
 argparser.add_argument("-i","--ip",type=str,default='0.0.0.0',help='Set ip that the server will bind to')
 argparser.add_argument("-p","--port",type=int,default=1338,help='Set the port for the sevrer')
-argparser.add_argument("-d","--debug",type=int,default=0,help='Set a minimum level for printing debug messages')
+argparser.add_argument("-d","--debug",type=int,default=0,help='Set a minimum level for printing debug messages (0-6)')
 argparser.add_argument("-l","--log",action='store_true',default=False,help='Enable/disable storing log in a log file')
 
 class GameServer:
@@ -206,6 +206,6 @@ class GameServer:
 args = argparser.parse_args()
 # Instantiate and start the server
 game_server = GameServer(args.ip,args.port)
-mainLogger.log(f"Set log leve: {args.debug}")
+mainLogger.log(f"Set log level: {args.debug}")
 mainLogger.log_level = args.debug
 game_server.start()
