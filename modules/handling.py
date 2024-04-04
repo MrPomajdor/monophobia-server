@@ -21,10 +21,13 @@ class Handling:
         pass
     def parse_packet(self, packet:Packet):
         mainLogger.log(f"Parsing packet: {packet.header}:{packet.flag} for player player {self.player_class.id}/{self.player_class.name}",6)
+        #TODO: restrict packet digesting frequency
         match packet.header:
             case Headers.data:
                 match packet.flag:
                     case Flags.Post.createLobby: #TODO: add a check if player has already a lobby, he cant create one. Please do it please please please
+                        if self.player_class.lobby:
+                            return
                         #name, max players,bool password,string password
                         mainLogger.log(f"Recieved lobby creation packet...",4)
                         new_name, new_max_players, isProtected, new_password = packet.get_from_payload(['string','int','bool','string'])
@@ -51,12 +54,14 @@ class Handling:
                             new_lobby.password = new_password
                             new_lobby.password_protected = True
                         self.server_class.lobbies.append(new_lobby)
+                        self.player_class.isHost = True
                         resp = Packet()
                         resp.header = Headers.data
                         resp.flag = Flags.Response.lobbyInfo
                         resp.add_to_payload(new_lobby.GetInfoJSON())
                         resp.send(self.client_socket)
                         mainLogger.log(f"Player {self.player_class.name} created a lobby: {new_name}/{new_max_players}/{isProtected}({new_password})",4)
+                        self.broadcast(None,BroadcastTypes.LobbyListChanged)
                     case Flags.Post.joinLobby: #{"mapName":"grid0","time":300,"players":[{"name":"debil","id":0,"cosmetics":[],"skin":"male01","isHost":false}]}
                         if self.player_class.lobby != None:
                             ReturnError(self.client_socket,"ALREADY_IN_LOBBY")
@@ -95,14 +100,17 @@ class Handling:
                             response_packet.add_to_payload(len(lobby.players))
                             response_packet.add_to_payload(lobby.max_players)
                         response_packet.send(self.client_socket)
-                    case Flags.Post.transformData: #UDP
+                    case Flags.Post.playerTransformData: #UDP
                         try:
-                            js = json.loads(packet.get_from_payload(['string']))
+                            xd = packet.get_from_payload(['string'])
+                            #print(xd)
+                            js = json.loads(xd)
                         except:
                             mainLogger.log(f"Recieved corrupted json data from {self.player_class.id}!",3)
                             ReturnError(self.client_socket,"JSON_CORRUPTED")
                             return
                         id = js.get("id")
+                        #print(js)
                         if self.player_class.id == id:  #check if id matches
                                 #TODO: make the alsgorythm for checking if the client is cheating, eg. check the distance between positions and detect when it jumps then teleport him back
                                 self.player_class.player_data = JsonToClass(js,PlayerData)
@@ -124,6 +132,49 @@ class Handling:
                             if pla.id != self.player_class.id:
                                 if Distance(pla.player_data.transforms.position,pla.player_data.transforms.position) < self.player_class.lobby.MiscSettings.max_voice_distance: #TODO: Check the actual distance and set it as a variable in lobby settings
                                     pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
+                    case Flags.Post.worldState:
+                        if not self.player_class.lobby:
+                            return
+                        if not self.player_class.isHost:
+                            return
+                        
+                        try:
+                            js = json.loads(packet.get_from_payload(['string']))
+                        except:
+                            mainLogger.log(f"Recieved corrupted json data from {self.player_class.id}!",3)
+                            ReturnError(self.client_socket,"JSON_CORRUPTED")
+                            return
+                        pac = Packet()
+                        pac.header = Headers.data
+                        pac.flag = Flags.Response.worldState
+                        pac.add_to_payload(packet.payload)
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
+                    case Flags.Post.itemPos:
+                        if not self.player_class.lobby:
+                            return
+                        
+                        try:
+                            js = json.loads(packet.get_from_payload(['string']))
+                        except:
+                            mainLogger.log(f"Recieved corrupted json data from {self.player_class.id}!",3)
+                            ReturnError(self.client_socket,"JSON_CORRUPTED")
+                            return
+                        item = JsonToClass(js,Item)
+                        if not self.player_class.isHost and Distance(item.transforms.position,self.player_class.player_data.transforms.position) > 10: #TODO: IMPORTANT! Check the actual distance for item position updating
+                            mainLogger.log(f"Client {self.player_class.id} tried to update item position that was too far away!",4)
+                            ReturnError(self.client_socket,"NOT_IN_RANGE")
+                            return
+                        #TODO: store items recieved in WorldState, update them here and send away the shit0, 
+                        pac = Packet()
+                        pac.header = Headers.data
+                        pac.flag = Flags.Response.itemData
+                        pac.add_to_payload(packet.payload)
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
+                        
                     case _: 
                         mainLogger.log(f"Invialid flag {packet.flag} for player player {self.player_class.id}/{self.player_class.name}",3)
                         ReturnError(self.client_socket,"INVALID_FLAG")
@@ -144,11 +195,14 @@ class Handling:
                 if (not lobby) or (not lobby.players):
                     return
                 dic = PlayersDataPacket()
-                dic.players = [cl.GetDataDic() for cl in self.server_class.clients]
+                dic.players = lobby.players #[cl.GetDataDic() for cl in lobby.players]
+                #for pl in dic.players:
+                #    print(pl.player_data.transforms.to_dict())
                 pack = Packet()
                 pack.header = Headers.data
                 pack.flag = Flags.Response.transformData
-                pack.add_to_payload(ClassToJson(dic))
+                pack.add_to_payload(json.dumps(dic.to_dict()))
+                print(f"sendfing : {dic.to_dict()}")
                 for pl in lobby.players:
                     pack.send(sock,(pl.ip,pl.udp_port))
             case BroadcastTypes.voice:
@@ -178,7 +232,15 @@ class Handling:
                 resp.send(self.client_socket)
                 for pl in lobby.players:
                     resp.send(pl.socket)
-                    
+            case BroadcastTypes.LobbyListChanged:
+                for play in self.server_class.clients:
+                    if play.lobby:
+                        continue
+                    mainLogger.log(f"Sending lobby update notification to {play.name}",4)
+                    resp = Packet()
+                    resp.header = Headers.data
+                    resp.flag = Flags.Response.lobbyListChanged
+                    resp.send(play.socket)
     def createLobby(self,owner:Player,lobbyName:str,max_players:int,password:str=None):
         mainLogger.log(f"Creating lobby {lobbyName}/{max_players}/{password} for {owner.name}",4)
         for lobby in self.lobbies:
@@ -191,7 +253,7 @@ class Handling:
         if password != None:
             lb.password = password
             lb.password_protected = True
-        self.lobbieself.append(lb)
+        self.server_class.lobbies.append(lb)
 
     def assign_player_id(self):
         new_id = len(self.server_class.clients) + 1
@@ -232,11 +294,12 @@ class Handling:
             self.broadcast(lobby,BroadcastTypes.LobbyClosing,data="Disconnected by host")
             self.server_class.lobbies.remove(lobby)
             mainLogger.log(f"Removed lobby {lobby.name} (owner left)",3)
-
+            self.broadcast(None,BroadcastTypes.LobbyListChanged)
         lobby.players.remove(player)
         if len(lobby.players) < 1:
             self.server_class.lobbies.remove(lobby)
             mainLogger.log(f"Removed lobby {lobby.name} (last player left - how?)",3)
+            self.broadcast(None,BroadcastTypes.LobbyListChanged)
         player.lobby = None
         mainLogger.log(f"Removed player {player.id}/{player.name} from lobby",3)
     def disconnect_client(self, client_socket, player:Player):

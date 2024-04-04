@@ -36,6 +36,6 @@ class Flags:
         transformData = b'\xB0'
         lobbyInfo = b'\x09'
         worldState = b'\xC2'
-        itemPos = b'\xC3'
+        itemData = b'\xC3'
         voice = b'\x0C'
 

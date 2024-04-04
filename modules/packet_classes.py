@@ -44,6 +44,31 @@ class PlayerData:
             "inputs": self.inputs.to_dict(),
             "id": self.id,
         }
+
+
+class Item:
+    def __init__(self) -> None:
+        self.id = 0
+        self.name = "air"
+        self.activated = False
+        self.transforms = Transforms()
+    def to_dict(self):
+        return {
+            "id" : self.id,
+            "name" : self.name,
+            "activated" : self.activated,
+            "transforms" : self.transforms
+        }
+
+class WorldStatus:
+    def __init__(self):
+        self.items = []
+    def to_dict(self):
+        return {
+            "Items": self.items
+        }
+
+
 class PlayersDataPacket:
     def __init__(self):
         self.type = "OtherPlayersPositionData"
@@ -51,7 +76,7 @@ class PlayersDataPacket:
     def to_dict(self):
         return {
             "type": self.type,
-            "players": [player.to_dict() for player in self.players]
+            "players": [player.GetDataDic() for player in self.players]
         }
 def ClassToJson(obj):
     return json.dumps(obj, default=lambda o: o.__dict__)
@@ -102,6 +127,20 @@ def JsonToClass(json_str, cls):
             xd = JsonToClass(player, PlayerData)
             print(type(xd),xd)
             obj.players.append(xd)
+        return obj
+    elif cls == WorldStatus:
+        obj = WorldStatus()
+        obj.items = [ ]
+        for item in data.get('items', []):
+            xd = JsonToClass(item, Item)
+            obj.items.append(xd)
+        return obj
+    elif cls == Item:
+        obj = Item()
+        obj.id = data.get("id",-1)
+        obj.name = data.get("name","air")
+        obj.activated = data.get("activated",False)
+        obj.transforms = JsonToClass(json.dumps(data.get('transforms', {})), Transforms)
         return obj
     else:
         raise ValueError(f"Unsupported class: {cls}")

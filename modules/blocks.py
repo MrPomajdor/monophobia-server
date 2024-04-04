@@ -9,6 +9,7 @@ class BroadcastTypes:
     lobbyList = 3
     lobbyInfo = 4
     LobbyClosing = 5
+    LobbyListChanged = 6
 
 class Maps:
     gridmap = "grid0"
