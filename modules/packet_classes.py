@@ -1,3 +1,5 @@
+#includes all server/client classes
+
 import json
 
 class Vector3:
@@ -9,26 +11,34 @@ class Vector3:
         return f"Vector3({self.x}, {self.y}, {self.z})"
     def to_dict(self):
         return {"x": self.x, "y": self.y, "z": self.z}
-
+class InteractionMessage:
+    def __init__(self):
+        self.PlayerID = 0
+        self.InteractableID = 0
+        self.InteractionMessage = ""
+    def to_dict(self):
+        return {"PlayerID":self.PlayerID,"InteractableID":self.InteractableID,"InteractionMessage":self.InteractionMessage}
 class Inputs:
     def __init__(self):
         self.isSprinting = False
         self.isMoving = False
         self.isCrouching = False
+        self.MoveDiredction = Vector3()
     def to_dict(self):
-        return {"isSprinting": self.isSprinting, "isMoving": self.isMoving, "isCrouching": self.isCrouching}
+        return {"isSprinting": self.isSprinting, "isMoving": self.isMoving, "isCrouching": self.isCrouching,"MoveDirection":self.MoveDiredction.to_dict()}
     
 class Transforms:
     def __init__(self):
         self.position = Vector3()
         self.rotation = Vector3()
-        self.target_velocity = Vector3()
+        #self.target_velocity = Vector3()
         self.real_velocity = Vector3()
+        self.real_angular_velocity = Vector3()
     def to_dict(self):
         return {
             "position": self.position.to_dict(),
             "rotation": self.rotation.to_dict(),
-            "target_velocity": self.target_velocity.to_dict(),
+            "real_angular_velocity": self.real_angular_velocity.to_dict(),
             "real_velocity": self.real_velocity.to_dict(),
         }
 class PlayerData:
@@ -57,15 +67,30 @@ class Item:
             "id" : self.id,
             "name" : self.name,
             "activated" : self.activated,
-            "transforms" : self.transforms
+            "transforms" : self.transforms.to_dict()
         }
 
-class WorldStatus:
+class InteractionInfo:
+        def __init__(self) -> None:
+            self.itemID = 0
+            self.activated = False
+        def to_dict(self):
+            return {
+                "itemID":self.itemID,
+                "activated":self.activated
+            }
+
+
+
+class WorldState:
     def __init__(self):
         self.items = []
+        self.itemMap = {}
+    def UpdateItemMap(self):
+        self.itemMap = {itm.id: itm for itm in self.items}
     def to_dict(self):
         return {
-            "Items": self.items
+            "items": [x.to_dict() for x in self.items]
         }
 
 
@@ -107,11 +132,11 @@ def JsonToClass(json_str, cls):
         obj = Transforms()
         p = JsonToClass(json.dumps(data.get('position')),Vector3)
         r = JsonToClass(json.dumps(data.get('rotation')),Vector3)
-        tv = JsonToClass(json.dumps(data.get('target_velocity')),Vector3)
+        tv = JsonToClass(json.dumps(data.get('real_angular_velocity')),Vector3)
         rv = JsonToClass(json.dumps(data.get('real_velocity')),Vector3)
         obj.position = p
         obj.real_velocity = rv
-        obj.target_velocity = tv
+        obj.real_angular_velocity = tv
         obj.rotation = r
         return obj
     elif cls == PlayerData:
@@ -128,8 +153,8 @@ def JsonToClass(json_str, cls):
             print(type(xd),xd)
             obj.players.append(xd)
         return obj
-    elif cls == WorldStatus:
-        obj = WorldStatus()
+    elif cls == WorldState:
+        obj = WorldState()
         obj.items = [ ]
         for item in data.get('items', []):
             xd = JsonToClass(item, Item)
@@ -141,6 +166,13 @@ def JsonToClass(json_str, cls):
         obj.name = data.get("name","air")
         obj.activated = data.get("activated",False)
         obj.transforms = JsonToClass(json.dumps(data.get('transforms', {})), Transforms)
+        return obj
+    elif cls == InteractionInfo:
+        obj = InteractionInfo()
+        obj.itemID = data.get("itemID")
+        obj.pickedUp = data.get("pickedUp")
+        obj.pickedUpPlayerID = data.get("pickedUpPlayerID")
+        obj.activated = data.get("activated")
         return obj
     else:
         raise ValueError(f"Unsupported class: {cls}")

@@ -20,7 +20,8 @@ class Handling:
         self.server_class = None
         pass
     def parse_packet(self, packet:Packet):
-        mainLogger.log(f"Parsing packet: {packet.header}:{packet.flag} for player player {self.player_class.id}/{self.player_class.name}",6)
+        #mainLogger.log(f"Parsing packet: {packet.header}:{packet.flag} for player player {self.player_class.id}/{self.player_class.name}",6)
+        mainLogger.logPacket(packet)
         #TODO: restrict packet digesting frequency
         match packet.header:
             case Headers.data:
@@ -41,12 +42,15 @@ class Handling:
                             return
                         if next((item for item in self.server_class.lobbies if item.owner == self.player_class), None):
                             ReturnError(self.client_socket,"PLAYER_LOBBY_EXISTS")
-                            mainLogger.log(f"Player {self.player_class.name} tried to create a lobby, even tho he has one already. Grumpy fucker...",4)
+                            mainLogger.log(f"Player {self.player_class.name} tried to create a lobby, even tho he has one already. Greedy fucker...",4)
                             return
                          
                         new_lobby = Lobby(new_name)
                         if "shithead" in new_name.decode("UTF-8"):
                             new_lobby.map = "grid0"
+                            mainLogger.log(f"Creating debug lobby")
+                        if "sex" in new_name.decode("UTF-8"):
+                            new_lobby.map = "psychward"
                             mainLogger.log(f"Creating debug lobby")
                         new_lobby.SetOwnership(self.player_class.id)
                         new_lobby.AddPlayer(self.player_class)
@@ -127,31 +131,44 @@ class Handling:
                         pac.add_to_payload(self.player_class.id)
                         pac.add_to_payload(len(vo_data))
                         pac.add_to_payload(vo_data)
-                        #print(f"Recieved {len(vo_data)} bytes of voice data")
+                        #print(f"Recieved {len(vo_data)} bytes of voice data from client {self.player_class.id}")
                         for pla in self.player_class.lobby.players:
                             if pla.id != self.player_class.id:
-                                if Distance(pla.player_data.transforms.position,pla.player_data.transforms.position) < self.player_class.lobby.MiscSettings.max_voice_distance: #TODO: Check the actual distance and set it as a variable in lobby settings
-                                    pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
+                                #if Distance(pla.player_data.transforms.position,pla.player_data.transforms.position) < self.player_class.lobby.MiscSettings.max_voice_distance: #TODO: Check the actual distance and set it as a variable in lobby settings
+                                pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
                     case Flags.Post.worldState:
                         if not self.player_class.lobby:
                             return
                         if not self.player_class.isHost:
                             return
                         
+                        tws:WorldState
+
                         try:
                             js = json.loads(packet.get_from_payload(['string']))
+                            #print(f"Post world state {js}")
+                            tws = JsonToClass(js,WorldState)
                         except:
                             mainLogger.log(f"Recieved corrupted json data from {self.player_class.id}!",3)
                             ReturnError(self.client_socket,"JSON_CORRUPTED")
                             return
+                            
+                        self.player_class.lobby.WorldState = tws
+                        
+                        self.player_class.lobby.WorldState.UpdateItemMap()
+                    case Flags.Request.worldState:
+                        if not self.player_class.lobby:
+                            return
+                        if self.player_class.isHost:
+                            return
+                        
                         pac = Packet()
                         pac.header = Headers.data
                         pac.flag = Flags.Response.worldState
-                        pac.add_to_payload(packet.payload)
-                        for pla in self.player_class.lobby.players:
-                            if pla.id != self.player_class.id:
-                                pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
-                    case Flags.Post.itemPos:
+                        print(self.player_class.lobby.WorldState.items)
+                        pac.add_to_payload(json.dumps(self.player_class.lobby.WorldState.to_dict()))
+                        pac.send(self.client_socket)
+                    case Flags.Post.transform:
                         if not self.player_class.lobby:
                             return
                         
@@ -161,24 +178,119 @@ class Handling:
                             mainLogger.log(f"Recieved corrupted json data from {self.player_class.id}!",3)
                             ReturnError(self.client_socket,"JSON_CORRUPTED")
                             return
-                        item = JsonToClass(js,Item)
-                        if not self.player_class.isHost and Distance(item.transforms.position,self.player_class.player_data.transforms.position) > 10: #TODO: IMPORTANT! Check the actual distance for item position updating
-                            mainLogger.log(f"Client {self.player_class.id} tried to update item position that was too far away!",4)
-                            ReturnError(self.client_socket,"NOT_IN_RANGE")
+                        #item = JsonToClass(js,Item)
+                        if not self.player_class.isHost: 
+                            mainLogger.log(f"Client {self.player_class.id} tried to update item position while not being a host!",4)
+                            ReturnError(self.client_socket,"ACTION_NOT_ALLOWED")
                             return
                         #TODO: store items recieved in WorldState, update them here and send away the shit0, 
+                        #print("XDDDDDDDDDDDD")
                         pac = Packet()
                         pac.header = Headers.data
-                        pac.flag = Flags.Response.itemData
+                        pac.flag = Flags.Response.transform
                         pac.add_to_payload(packet.payload)
                         for pla in self.player_class.lobby.players:
                             if pla.id != self.player_class.id:
                                 pac.send(self.server_class.udp_socket,(pla.ip,pla.udp_port))
+                    case Flags.Post.itemIntInf:
+                        #TODO: Check the distance between the player and the item before re-assigning who is holding the item
+                        if not self.player_class.lobby:
+                            return
+                        try:
+                            js = json.loads(packet.get_from_payload(['string']))
+                        except:
+                            mainLogger.log(f"Recieved corrupted json data from {self.player_class.id}!",3)
+                            ReturnError(self.client_socket,"JSON_CORRUPTED")
+                            return
+                        intInf:InteractionInfo = JsonToClass(js,InteractionInfo)
+                        intItem:Item = self.player_class.lobby.WorldState.itemMap.get(intInf.itemID)
+                        intItem.activated = intInf.activated
                         
-                    case _: 
-                        mainLogger.log(f"Invialid flag {packet.flag} for player player {self.player_class.id}/{self.player_class.name}",3)
-                        ReturnError(self.client_socket,"INVALID_FLAG")
+                        placeholder = Packet()
+                        placeholder.header=Headers.data
+                        placeholder.flag = Flags.Response.itemIntInf
+                        placeholder.add_to_payload(packet.payload)
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                    placeholder.send(pla.socket)
+                    case Flags.Post.itemPickup:
+                        if not self.player_class.lobby:
+                            return
+                        itemID = packet.get_from_payload(['int'])
 
+
+                        placeholder = Packet()
+                        placeholder.header=Headers.data
+                        placeholder.flag = Flags.Response.itemPickup
+                        placeholder.add_to_payload(self.player_class.id)
+                        placeholder.add_to_payload(itemID)
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                    placeholder.send(pla.socket)
+                    case Flags.Post.itemDrop:
+                        if not self.player_class.lobby:
+                            return
+                        itemID = packet.get_from_payload(['int'])
+
+
+                        placeholder = Packet()
+                        placeholder.header=Headers.data
+                        placeholder.flag = Flags.Response.itemDrop
+                        placeholder.add_to_payload(self.player_class.id)
+                        placeholder.add_to_payload(itemID)
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                    placeholder.send(pla.socket)
+                    case Flags.Post.inventorySwitch:
+                        if not self.player_class.lobby:
+                            return
+                        itemID = packet.get_from_payload(['int'])
+
+
+                        placeholder = Packet()
+                        placeholder.header=Headers.data
+                        placeholder.flag = Flags.Response.inventorySwitch
+                        placeholder.add_to_payload(self.player_class.id)
+                        placeholder.add_to_payload(itemID)
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                    placeholder.send(pla.socket)
+                    case Flags.Post.lobbyInfo:
+                        if not self.player_class.isHost:
+                            ReturnError(self.client_socket,"NOT_AUTHORIZED")
+                            return
+                        
+                        try:
+                            js = json.loads(packet.get_from_payload(['string']))
+                            recievedLobbyInfo = JsonToClass(js,WorldState)
+                            self.player_class.lobby.WorldState = recievedLobbyInfo
+                        except:
+                            mainLogger.log(f"Recieved corrupted json data from {self.player_class.id}!",3)
+                            ReturnError(self.client_socket,"JSON_CORRUPTED")
+                            return
+                        resp = Packet()
+                        resp.header = Headers.data
+                        resp.flag = Flags.Response.startMap
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                    resp.send(pla.socket)
+                    case Flags.Post.interactableMessage:
+                        if not self.player_class.lobby:
+                            return
+                        itemID = packet.get_from_payload(['int'])
+                        itemID = packet.get_from_payload(['int'])
+
+
+                        placeholder = Packet()
+                        placeholder.header=Headers.data
+                        placeholder.flag = Flags.Response.inventorySwitch
+                        placeholder.add_to_payload(self.player_class.id)
+                        placeholder.add_to_payload(itemID)
+                        for pla in self.player_class.lobby.players:
+                            if pla.id != self.player_class.id:
+                                    placeholder.send(pla.socket)
+                    case _:
+                        mainLogger.log(f"Flag {packet.flag} not recognized!")
             case Headers.echo:
                 #i mean, okay? What do you want me to fucking do with that information. Like I could send you ack i guess?
                 xd = Packet()
@@ -187,7 +299,9 @@ class Handling:
             case Headers.ack:
                 pass
             case _:
-                mainLogger.log(f"Invialid heaqder {packet.header} for player player {self.player_class.id}/{self.player_class.name}",3)
+                mainLogger.log(f"Invialid heaqder {packet.header.hex()} for player player {self.player_class.id}/{self.player_class.name}",3)
+                #mainLogger.log(f"Invialid heaqder {packet.payload} for player player {self.player_class.id}/{self.player_class.name}",3)
+
                 ReturnError(self.client_socket,"INVALID_HEADER")
     def broadcast(self,lobby:Lobby,what:BroadcastTypes,data=None,sock:socket=None):
         match what:
@@ -202,7 +316,6 @@ class Handling:
                 pack.header = Headers.data
                 pack.flag = Flags.Response.transformData
                 pack.add_to_payload(json.dumps(dic.to_dict()))
-                print(f"sendfing : {dic.to_dict()}")
                 for pl in lobby.players:
                     pack.send(sock,(pl.ip,pl.udp_port))
             case BroadcastTypes.voice:
@@ -300,8 +413,10 @@ class Handling:
             self.server_class.lobbies.remove(lobby)
             mainLogger.log(f"Removed lobby {lobby.name} (last player left - how?)",3)
             self.broadcast(None,BroadcastTypes.LobbyListChanged)
+        self.broadcast(player.lobby,BroadcastTypes.lobbyInfo) # broadcast that the lobby info (including player list) has changed
         player.lobby = None
         mainLogger.log(f"Removed player {player.id}/{player.name} from lobby",3)
+        
     def disconnect_client(self, client_socket, player:Player):
         # Remove the client from lobbies and global player list
         mainLogger.log(f"Player {player.id}/{player.name} disconnecting...",3)

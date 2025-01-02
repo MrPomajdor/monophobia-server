@@ -1,3 +1,6 @@
+#includes all server-only classes
+
+
 import json
 import random
 from typing import List
@@ -29,7 +32,7 @@ class Player:
         self.udp_port = None
         self.tcp_port = None
         self.player_data = PlayerData()
-        self.cosmetics = []
+        self.cosmetics: list[str] = []
         self.skin = ""
         self.isHost = False
         self.lobby:Lobby = None
@@ -42,9 +45,10 @@ class Player:
         
     
 
+  
 
-class Lobby:
-    def __init__(self,name:str):
+class Lobby: 
+    def __init__(self,name:str):  
         self.owner = None
         self.name = name
         self.players: List[Player] = []
@@ -56,6 +60,7 @@ class Lobby:
         self.id = 0
         self.started = False
         self.MiscSettings = MiscSettings()
+        self.WorldState = WorldState()
     def SetOwnership(self,new_owner):
         if new_owner == None:
             self.owner = random.choice(self.players)
@@ -74,4 +79,6 @@ class Lobby:
         for pl in self.players:
             respDic["players"].append({"name":pl.name.decode("UTF-8"),"id":pl.id,"cosmetics":pl.cosmetics,"skin":pl.skin,"isHost":(self.owner == pl.id)})
         return json.dumps(respDic)
+        
+
         

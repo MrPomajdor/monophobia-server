@@ -52,6 +52,7 @@ class GameServer:
         for attempt in range(1, max_attempts + 1):
             try:
                 data = client_socket.recv(1024) 
+                #data = data[:3] + data[7:]
                 if data:
                     received_packet = Packet() 
                     received_packet.digest_data(data)
@@ -65,13 +66,16 @@ class GameServer:
             time.sleep(sleep_interval)
 
         return None
+    #31.12.2024 this function does not receive data unless I print something after the try block??????
+    #02.01.2025 nvm?????
     def udp_handler(self):
         try:
             while 1:
                 try:
                     data, addr = self.udp_socket.recvfrom(4096)
                 except Exception as e:
-                    mainLogger.log(f"{e} UDP")
+                    mainLogger.log(f"{e} UDP RECV\n{data}")  
+                
                 #detect 'I'm here!' packet
                 if data:
                     if len(data)>2 and data[:2] == Headers.imHere: #that looks ugly as hell. Oh and ImHere packet gets sent in the handshake phase, to tell the server what udp_port im going to send on
@@ -90,17 +94,20 @@ class GameServer:
                 if not data or not player_class or player_class.ip != addr[0] or player_class.udp_port != addr[1]:
                     continue
 
-                try:
-                    if data.decode("UTF-8") == "holepunch":
-                        continue
-                except:
-                    pass
+                if data == b'holepunch':
+                     continue
+
                 player_class.udp_port = addr[1]
                 dataPacket = Packet()
+                #if data.startswith(Fragmentator.FCHHeader) or data.startswith(Fragmentator.FInitHeader): #this means that the packet is a Fragment packet
+                #    mainLogger.log("Fragmented packet on UDP!")
+                
                 if dataPacket.digest_data(data):
                     player_class.handler.parse_packet(dataPacket)
         except KeyboardInterrupt:
             mainLogger.log("Server shitting down (UDP)")
+        except Exception as e:
+            mainLogger.log(f"UDP Critical error: {e}")
         finally:
             self.udp_socket.close()
                 
@@ -122,7 +129,7 @@ class GameServer:
                 mainLogger.log("hello packet not recieved. Disconnecting.",2)
                 raise ConnectionException("Cliend did not respond to hello.")
             # Receive player name from the client
-            name = packet.get_from_payload(['string'])
+            name,version = packet.get_from_payload(['string','string'])
             # Assign a new player ID
             # Add the player to the global players dictionary
             player_class = hand.init_player(name,address)
@@ -134,24 +141,55 @@ class GameServer:
             id.send(client_socket)
             echo = threading.Thread(target=self.echo_handler, args=(client_socket,))
             echo.start()
-            mainLogger.log(f"Client initialized: {name} id {player_class.id}")
+            mainLogger.log(f"Client initialized: {name} id {player_class.id}. Game version: {version}")
             player_class.handler = hand
             hand.client_socket = client_socket
             hand.player_class = player_class
             hand.server_class = self
 
-
+            defrag = Defragmentator()
+            buffer = b''
             while 1:
                 try:
-                    data = client_socket.recv(1024)
+                    data = client_socket.recv(2048)
                 except:
                     raise AllGoodEnding(":DD")
                 if not data:
                     mainLogger.log("No data - client disconnected",3)
                     break
                 packet = Packet()
-                packet.digest_data(data)
+                msg_len = struct.unpack('I',data[3:7])[0]
+                #data = data[:3]+data[7:]
+                buffer+=data
+                if(msg_len > 2048):
+                    to_read = msg_len
+                    while to_read > 0:
+                        buffer+=client_socket.recv(2048)
+                        to_read-=2048
+                #if data.startswith(Fragmentator.FCHHeader) or data.startswith(Fragmentator.FInitHeader): #this means that the packet is a Fragment packet
+                #    #mainLogger.log("Received fragmented data!",9)
+                #    start = time.time()
+                #    res = defrag.PushData(data)
+                #    mainLogger.log(f"Fragment time: {time.time() - start}")
+                #    if res.isDone:
+                #        mainLogger.log("Received full fragmented packet",9)
+                #        with open("xddd","w") as f:
+                #            f.write(str(res.payload))
+                #        packet.digest_data(res.payload)
+                #        hand.parse_packet(packet)
+                #    else:
+                #        mainLogger.log(f"Received fragment.... hash {res.hash}",9)
+                #        frag_ack = Packet()
+                #        frag_ack.header = Headers.data
+                #        frag_ack.flag = Flags.Response.fragment_received
+                #        frag_ack.add_to_payload(res.hash)
+                #        frag_ack.send(client_socket)
+#
+                #else:
+                packet.digest_data(buffer)
+                buffer=b''
                 hand.parse_packet(packet)
+                
             raise AllGoodEnding("disconnecting")
             
                 
@@ -173,7 +211,7 @@ class GameServer:
             traceback.print_exc()
         finally:
             # Disconnect client and clean up
-            if player_class and client_socket:
+            if player_class != None and client_socket:
                 mainLogger.log(f"Client {player_class.id}/{player_class.name} disconnected.")
                 hand.disconnect_client(client_socket, player_class)
             else:
@@ -197,11 +235,18 @@ class GameServer:
     
     def start(self):
         mainLogger.log(f"Starting Monophobia server on {self.host}:{self.port}")
-        print(f"          Close server using CTRL+Break")
         tcp = threading.Thread(target=self.tcp_recv)
+        tcp.daemon = True
         tcp.start()
         udp = threading.Thread(target=self.udp_handler)
+        udp.daemon = True
         udp.start()
+
+        try:
+            while 1:
+                pass
+        except KeyboardInterrupt:
+            mainLogger.log("Shutting down. (CTRL+C)")
 
 args = argparser.parse_args()
 # Instantiate and start the server
